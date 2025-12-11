@@ -20,7 +20,82 @@ An Agent-based Root Cause Analysis Framework with Counterfactual Verification.
 
 ## 🏗️ Architecture (系统架构)
 
-> [TODO: System Architecture Diagram]
+```mermaid
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#4caf50', 'edgeLabelBackground':'#ffffff', 'tertiaryColor': '#f1f8e9'}}}%%
+graph LR
+    %% ================== 样式定义 ==================
+    classDef storage fill:#fff9c4,stroke:#fbc02d,stroke-width:2px;
+    classDef process fill:#e1f5fe,stroke:#0288d1,stroke-width:2px;
+    classDef agent fill:#f3e5f5,stroke:#8e24aa,stroke-width:2px,stroke-dasharray: 5 5;
+    classDef core fill:#ce93d8,stroke:#4a148c,stroke-width:3px;
+    
+    %% ================== 1. 触发与采集层 ==================
+    subgraph Trigger ["1. 触发与采集 (Trigger & Collect)"]
+        direction TB
+        Alert["🔥 告警触发 (Alert)"]
+        RawCollector["数据采集器 (Collector)"]
+        RawData[("原始海量数据\nRaw Logs/Metrics")]
+    end
+
+    %% ================== 2. 数据处理层 (核心变更) ==================
+    subgraph DataPipeline ["2. 数据清洗与分层 (ETL)"]
+        direction TB
+        Cleaner["清洗与精简 (Cleaning & Pruning)"]
+        V2Data[("✨ 版本2数据 (V2 Data)\n(结构化/高信噪比)")]
+    end
+
+    %% ================== 3. 智能分析层 ==================
+    subgraph Brain ["3. 智能根因分析 (Agent Core)"]
+        direction TB
+        
+        %% Agent 内部逻辑
+        subgraph AgentLogic ["Agent 决策流"]
+            FixedFlow["固定流程 (SOP/Checklist)"]
+            Decision{"SOP能解决?"}
+            ReAct["ReAct 推理模式\n(Reasoning & Acting)"]
+        end
+        
+        Tool_Retrieval["工具: Retrieval-as-a-Tool"]
+    end
+
+    %% ================== 4. 验证与输出 ==================
+    subgraph Outcome ["4. 验证与输出 (Output)"]
+        Verifier["🛡️ 反事实验证 (Counterfactual Verification)"]
+        FinalReport["📝 最终诊断报告"]
+    end
+
+    %% ================== 连线逻辑 ==================
+    
+    %% 数据流
+    Alert --> RawCollector
+    RawCollector --> RawData
+    RawData --> Cleaner
+    Cleaner -->|"降噪/预聚合"| V2Data
+
+    %% 触发 Agent
+    Alert -->|"启动诊断"| FixedFlow
+
+    %% Agent 思考流
+    FixedFlow --> Decision
+    Decision -- Yes --> Verifier
+    Decision -- No --> ReAct
+    
+    %% 工具调用 (只查 V2 数据)
+    ReAct <-->|"思考: 数据不足 -> 调用"| Tool_Retrieval
+    FixedFlow <-->|"查指标"| Tool_Retrieval
+    Tool_Retrieval <-->|"提取高价值信息"| V2Data
+
+    %% 验证流 (核心)
+    ReAct -->|"得出初步结论"| Verifier
+    Verifier --"假设不成立 -> 重试"--> ReAct
+    Verifier --"验证通过"--> FinalReport
+
+    %% 样式应用
+    class RawData,V2Data storage;
+    class RawCollector,Cleaner,Tool_Retrieval,Verifier process;
+    class AgentLogic agent;
+    class ReAct,FixedFlow core;
+```
 
 ### Workflow
 1.  **Alert Trigger:** RPC 错误率突增触发诊断。
