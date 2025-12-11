@@ -3,7 +3,8 @@ An Agent-based Root Cause Analysis Framework with Counterfactual Verification.
 
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Status](https://img.shields.io/badge/status-Research_Prototype-orange.svg)]()
-[![DOI](https://zenodo.org/badge/DOI/xxxx.svg)](https://doi.org/xxxx)
+[![DOI](https://zenodo.org/badge/1114458069.svg)](https://doi.org/10.5281/zenodo.17898791)
+
 
 ## 📖 Introduction (项目简介)
 
