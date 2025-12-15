@@ -57,6 +57,39 @@
 
 ---
 
+## 📅 2025-12-15: Phase 3 - Retrieval-as-a-Tool 的范式转移：从 SQL 到文件系统隐喻
+
+### 1. Context (背景与痛点)
+
+**在落地** **Retrieval-as-a-Tool (RaaT)** **机制时，需要让 Agent 从预处理好的“灾难现场快照” (JSON 格式) 中提取信息。**
+初期尝试引入 **DuckDB** **作为中间层，让 LLM 编写 SQL 进行查询，但遭遇了显著的“由于（ROI）”问题：**
+
+* **SQL 生成脆性:** **LLM 在处理简单的** **SELECT \*** **时表现尚可，但在涉及 JSON 字段提取和嵌套查询时，错误率显著升高。**
+* **杀鸡用牛刀:** **面对的数据对象已经是经过清洗的、行数有限的 Context JSON，引入数据库引擎显得过于厚重，且并未带来预期的检索精度提升。**
+
+### 2. Key Decisions (关键决策)
+
+#### A. 转向“文件系统隐喻”交互 (File System Metaphor Interface)
+
+* **设计:** **放弃 SQL 接口，重构为模拟 Linux/ZooKeeper 的文件系统交互模式。**
+* **工具集:** **精简为 4 个原子工具：**
+  
+  * **ls**: 探索当前上下文结构（看目录）。
+  * **cat**: 读取具体的数据切片（读文件）。
+  * **grep**: 跨维度的关键词搜索（如全局搜索 TraceID）。
+  * **guide**: 获取当前层级数据的元信息与分析建议。
+* **价值:** **利用 LLM 在预训练阶段对 Shell/Linux 环境的深刻直觉（Native Intuition），降低了 Tool Use 的学习成本，比生成的 SQL 更鲁棒。**
+
+#### B. 引入动态导航机制 (The "Guide" Pattern)
+
+* **灵感:** **参考 Anthropic 最新的 Agent Skills 设计理念，强调 Context 与 Data 的分离。**
+* **设计:** **实现** **"Guide/README"** **机制。**
+  
+  * **Agent 进入某个数据目录时，先读取** **guide**。
+  * **guide** **仅告知“这里有什么数据”以及“建议怎么用”，而不直接 dump 数据。**
+* ​**价值:** **实现了上下文的** **按需加载 (Lazy Loading)**。Agent 不再会被海量 Context 淹没，而是像人类专家一样，先看目录索引，再按需调取细节。这极大节省了 Token 开销，并减少了无关信息对推理的干扰。
+  
+
 ## 🔮 Future Roadmap (未来规划)
 
 * **[Planned]** 引入multagent架构、扩展能力指至基础层、代码层...
