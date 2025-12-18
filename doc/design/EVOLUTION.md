@@ -119,7 +119,13 @@
   * **TimeSeriesFormatter**: 负责计算 P99、绘制 Sparklines、异常点高亮。
   * **LogFormatter**: 负责日志降噪、错误堆栈折叠。
   * **Event/AlertFormatter**: 负责精简json，形成节省token，可读性良好的markdown格式的事件告警描述
-* ​**价值:** **实现了** **Open/Closed Principle (开闭原则)**。未来新增数据类型（如拓扑图文本化），无需修改核心逻辑，只需注册新的 Formatter。
+* ​**价值:** **实现了** **Open/Closed Principle (开闭原则)**。未来新增数据类型（如拓扑图文本化），无需修改核心逻辑，只需注册新的 Formatter。​
+
+### 3. Impact (影响)
+
+* **精度提升:** **Agent 对“瞬间脉冲 (Spike)”的识别率显著提升，幻觉误报率大幅下降。**
+* **成本优化:** **通过“智能折叠”非关键数据，单次诊断的 Token 消耗降低了约 40%。**
+
 
 ## 📅 2025-12-18: Phase 4 - 自动化执行固定流程分析，产出高质量单应用报告
 
@@ -127,13 +133,9 @@
 *  ​**架构:** 流程化，固定化，统计学方法整理指标
 
 详情：[指标分析算法](https://github.com/qingshanyuluo/AIOps-Intelligent-RCA/blob/main/doc/design/timeseries-analysis.md)
-  ​
 
-### 3. Impact (影响)
+* ​**价值:** **指标分析几分钟=>毫秒级**
 
-* **精度提升:** **Agent 对“瞬间脉冲 (Spike)”的识别率显著提升，幻觉误报率大幅下降。**
-* **成本优化:** **通过“智能折叠”非关键数据，单次诊断的 Token 消耗降低了约 40%。**
-  
 
 ## 🔮 Future Roadmap (未来规划)
 
