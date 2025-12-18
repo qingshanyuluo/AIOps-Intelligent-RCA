@@ -97,6 +97,7 @@
 
 * **数值盲区 (Numerical Blindness):** **LLM 难以仅凭一串浮点数（如** **[0.1, 0.2, ... 99.0]**）敏锐地感知趋势变化，且容易算错统计值。
 * **Token 效率低:** **简单的 Top-N 时序数据平铺会消耗大量 Token，且分散了 Agent 的注意力。**
+* **日志、告警、变更等原始json信息密度低，含有大量无用tag，消耗大量 Token，且分散了 Agent 的注意力**
 
 ### 2. Key Decisions (关键决策)
 
@@ -117,6 +118,7 @@
   
   * **TimeSeriesFormatter**: 负责计算 P99、绘制 Sparklines、异常点高亮。
   * **LogFormatter**: 负责日志降噪、错误堆栈折叠。
+  * **Event/AlertFormatter**: 负责精简json，形成节省token，可读性良好的markdown格式的事件告警描述
 * ​**价值:** **实现了** **Open/Closed Principle (开闭原则)**。未来新增数据类型（如拓扑图文本化），无需修改核心逻辑，只需注册新的 Formatter。
   
   ​
