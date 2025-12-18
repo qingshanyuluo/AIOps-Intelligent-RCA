@@ -120,7 +120,13 @@
   * **LogFormatter**: 负责日志降噪、错误堆栈折叠。
   * **Event/AlertFormatter**: 负责精简json，形成节省token，可读性良好的markdown格式的事件告警描述
 * ​**价值:** **实现了** **Open/Closed Principle (开闭原则)**。未来新增数据类型（如拓扑图文本化），无需修改核心逻辑，只需注册新的 Formatter。
-  
+
+## 📅 2025-12-18: Phase 4 - 自动化执行固定流程分析，产出高质量单应用报告
+
+*  **问题:** **利用llmagent自主查询执行固定化的分析流程既耗时又浪费token，大模型注意力稀释**
+*  ​**架构:** 流程化，固定化，统计学方法整理指标
+
+详情：[指标分析算法](https://github.com/qingshanyuluo/AIOps-Intelligent-RCA/blob/main/doc/design/timeseries-analysis.md)
   ​
 
 ### 3. Impact (影响)
