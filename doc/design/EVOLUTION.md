@@ -277,6 +277,44 @@
 *   **零 IO 成本:** 算法完全基于已采集的 Trace 数据在内存运行，**不需要** 额外的 Prometheus 查询成本，极其高效。
 *   **Agent 智商跃升:** 彻底消除了因“受害者报错”导致的误导，确保 LLM 拿到的 Context 是经过数学验证的**真实瓶颈**。
 
+## 📅 2025-12-24: Phase 8 - 上下文卫生治理：大输出的“带外处理”策略 (Context Hygiene & Out-of-Band Strategy)
+
+### 1. Context (背景与痛点)
+
+随着工具链的丰富，Agent 在调用某些深层诊断工具（如抓取完整堆栈、读取大日志块）时，经常遭遇 ​**Context Pollution (上下文污染)**​。
+
+* **现象:** 单个工具返回超过 10k 字符的原始文本，直接撑爆了 Context Window。
+* **后果:** 模型出现明显的 **"Lost in the Middle"** 现象，注意力被噪音稀释，导致推理逻辑断层，甚至忘记了最初的任务目标。
+* **反思:** 参考 Claude Code 和 Cursor 等先进 IDE 的处理逻辑，**Raw Data 不应直接进入 Prompt，除非被明确请求。**
+
+### 2. Key Decisions (关键决策)
+
+#### A. 实施严格的输出熔断机制 (Hard Output Cap & Offloading)
+
+* **设计:** 在 Tool Executor 层引入中间件拦截器。
+* **阈值:** 设定 **2000 字符** 为“安全水位线”。
+* **逻辑:**
+  * 若 Output Length <= 2000: 正常返回给 Agent。
+  * 若 Output Length > 2000:
+    1. **截断 (Truncation):** 仅保留头部 (Head) 关键信息作为预览。
+    2. **落盘 (Dump):** 将完整内容写入临时文件存储 (e.g., `/tmp/agent_obs/log_xyz.txt`)。
+    3. **引用 (Reference):** 仅向 Agent 返回一句话：
+       > *"Output too large (>2000 chars). Head shown above. Full content saved to `{file_path}`. Use dedicated tools to inspect."*
+
+#### B. 增设“间接访问”工具组 (Indirect Access Tools)
+
+* **问题:** 数据被拦截后，Agent 如何获取被隐藏的细节？
+* **方案:** 既然不让“全读”，就必须提供“精读”和“概览”工具，迫使 Agent 改变阅读习惯。
+* **新增工具:**
+  * ​**`search_file(file_path, keyword)`**​: 替代 `cat`，利用 `grep` 逻辑只看含关键词的行（类似 Cursor 的 Terminal 读取机制）。
+  * ​**`summarize_file(file_path)`**​: 调用轻量级 LLM (或主模型分身) 对文件内容进行 Map-Reduce 摘要，只返回核心结论（如“发现 3 处 NullPointException”）。
+
+### 3. Impact (影响)
+
+* **智商回升:** 彻底根治了因 Token 过载导致的“变傻”问题，Agent 的长期记忆保持清醒。
+* **Token 经济:** 单轮交互的 Token 消耗变得可预测且平稳，不再因为一次意外的 `cat large_log` 而产生高额账单。
+* **行为修正:** 观察到 Agent 开始主动学习使用 `summarize` -> `search` 的人类专家行为模式，而非由于惰性直接读取全文。
+
 ## 🔮 Future Roadmap (未来规划)
 
 * **[Planned]** 引入multagent架构、扩展能力指至基础层、代码层...
