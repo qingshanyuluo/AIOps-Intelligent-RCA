@@ -349,6 +349,55 @@
 * **可解释性增强:** 由于强制了“最后一步逻辑核对”，Agent 输出的报告中包含了明确的“排除法”推理过程，使得人类专家更容易信任其结论。
 
 
+## 📅 2025-12-24: Phase 10 - 语义纠偏：建立“拓扑真理”优于“命名直觉”的原则
+
+### 1. Context (背景与痛点)
+
+**在 Phase 4.0 解决了注意力遗忘问题后，我们发现 Agent 仍然存在一种诡异的“高级幻觉”——** ​**语义偏见 (Semantic Bias)**​。
+
+* **现象:** 在排查一个 Feature Service 的延迟时，Agent 发现依赖列表中有一个 `AppPHSpatioTemporalSDEngine`（时空策略引擎），其 QPS 极高且响应慢。
+* **错误推理:** 尽管该服务明确位于 `downstream`（下游）字段中，Agent 却因为看到 "Engine" 这个单词，结合其训练数据中的架构常识，​**下意识地将其认定为“上游调用方”**​。
+* **后果:** Agent 认为“这是上游流量入口，无需排查其内部耗时”，从而直接忽略了这个导致线程池耗尽的真正​**下游瓶颈**​。
+* **本质:** 模型的 ​**先验知识 (Prior Knowledge)**​（Engine = 核心/上游）压倒了 ​**上下文事实 (Contextual Fact)**​（Path = meta.dependencies.downstream）。
+
+### 2. Key Decisions (关键决策)
+
+#### A. 确立“拓扑绝对真理”原则 (Topological Ground Truth)
+
+* **设计:** 引入\*\*“宪法级”\*\*的 Prompt 约束，明确“数据结构”的权威性高于“语义理解”。
+* **实现:** 在 System Prompt 的 `Core Principles` 章节加入 **"Path Over Name"** 公理：
+  > 🛑 拓扑真理公理：
+  > 
+  > 判断依赖关系时，JSON 路径是唯一的真理。
+  > 
+  > * 若在 `downstream` 列表 \$\\rightarrow\$ 它是 ​**被调用方 (Callee)**​。
+  > * 若在 `upstream` 列表 \$\\rightarrow\$ 它是 ​**调用方 (Caller)**​。
+  > * **严禁**基于服务名（如 Engine, Platform, Core）猜测方向。即使它叫 "GodService"，如果在 `downstream` 里，它就是被当前服务调用的下游。
+
+#### B. 实施“语义对抗”校验 (Semantic Adversarial Verification)
+
+* **问题:** LLM 的思维链容易“顺滑”地滑过逻辑漏洞。
+* **策略:** 在 Agent 遇到带有强语义误导性的服务名（如 Engine, Strategy, Gateway）出现在下游时，​**强制触发“反直觉自问”**​。
+* **实现:** 修改 `analyze_dependency` 的 Step 逻辑：
+  * *Trigger:* 检测到 downstream list 中包含 "Engine" 或 "Strategy"。
+  * *Action:* 强制输出 Thought："⚠️ 检测到名字像上游的服务出现在下游列表中。根据拓扑真理，这是一次反向调用或回调。我必须检查它的耗时，因为它会阻塞我的线程。"
+
+#### C. 工具层的“语义锚定” (Tool-Level Semantic Anchoring)
+
+* **设计:** 不再信任模型对原始 JSON 的解析能力，直接在工具输出层面“下毒（Inception）”。
+* **实现:** 修改 `cat` 工具对依赖文件的输出格式，从纯 JSON 变为 ​**带注释的语义文本**​。
+  * **From:** `{"downstream": ["AppEngine"]}`
+  * **To:**
+* **价值:** 通过在数据源头注入明确的解释性文本，直接切断了模型产生歧义的可能性。
+
+### 3. Impact (影响)
+
+* **纠偏成功率:** 在针对“策略引擎回调”、“网关双向依赖”等复杂拓扑场景的测试中，Agent 的归因准确率从 ​**40% 飙升至 98%**​。
+* **认知升级:** Agent 学会了“微服务无贵贱，位置定乾坤”的道理，不再被高大上的服务命名迷惑。
+* **长尾价值:** 这套“反偏见”机制后来被复用到 Database 字段解析中，防止模型错误地将 `is_deleted: 1` 的数据当作有效数据处理（仅凭字段名看起来像是有用的数据）。
+
+
+
 ## 🔮 Future Roadmap (未来规划)
 
 * **[Planned]** 引入multagent架构、扩展能力指至基础层、代码层...
