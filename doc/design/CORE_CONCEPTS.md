@@ -53,9 +53,48 @@
 
 ---
 
-## 3. 核心算法详解 (Key Algorithms)
 
-### 3.1 工业级微服务耗时异常检测 (At Collection Layer)
+## 3. 核心创新：RaaT (Retrieval-as-a-Tool) 交互框架
+
+**这是 Agent 进行 Stage 4 深度分析的核心引擎。**
+我们发现直接 Dump JSON 或让 LLM 写 SQL 既脆弱又浪费 Token。因此，我们构建了一套 **模拟 Linux 文件系统** 的虚拟交互环境。
+
+### 3.1 交互协议：文件系统隐喻 (File System Metaphor)
+利用 LLM 在预训练阶段对 Shell/Linux 环境的深刻直觉，将复杂的 APM 数据抽象为“目录”和“文件”。我们精简出 4 个原子工具：
+
+1.  **`ls` (探索):** 查看当前上下文结构（如 `ls /metrics/redis`）。
+2.  **`guide` (导航):** **Lazy Loading 的核心。**
+    *   Agent 进入目录先读 `guide`，它仅返回“这里有什么数据”及“建议排查思路”，**不返回**具体数据。
+    *   *价值:* 防止 Agent 被海量 Context 淹没，迫使它像人类专家一样“先看目录，再查细节”。
+3.  **`cat` (读取):** 读取具体数据切片（详见下文“智能渲染”）。
+4.  **`grep` (搜索):** 跨维度的关键词搜索（如全局搜 `TraceID` 或 `Exception`）。
+
+### 3.2 观测层升级：富观测渲染 (Rich-Observation Rendering)
+Agent 最大的弱点是 **数值盲区** 和 **Token 效率低**。我们确立了 **"Tool Should Be Smart"** 原则，`cat` 不仅仅是读取，更是**渲染**。
+
+#### A. 解决数值盲区：ASCII Sparklines
+LLM 对浮点数组 `[0.1, 0.2, ... 99.0]` 无感。
+*   **渲染方案：** `SmartCatTool` 调用 `TimeSeriesFormatter`，将数据渲染为字符趋势图：
+    > `Latency: 12ms ▂▃▄▆██ (P99 Spike Detected)`
+*   **效果：** 利用 LLM 强大的**视觉/形状语义理解能力**，实现“一眼看穿”故障趋势（脉冲、阶梯、渐变）。
+
+#### B. 解决 Token 爆炸：Formatter Registry
+原始 JSON 信息密度极低。我们引入 **策略模式 (Strategy Pattern)** 对不同文件类型进行语义折叠：
+*   **`LogFormatter`:** 降噪无用 Tag，折叠重复堆栈。
+*   **`EventFormatter`:** 将复杂的 K8s Event JSON 转换为高可读性的 Markdown 摘要。
+*   **扩展性:** 符合开闭原则，新增数据类型只需注册新的 Formatter。
+
+### 3.3 卫生治理：输出拦截器 (The Interceptor)
+为了防止 `cat` 意外读取超大日志撑爆 Context Window：
+*   **熔断机制：** 若工具输出 > 2000 字符，中间件自动拦截。
+*   **行为修正：** 仅返回 Head 预览，并提示 Agent *"Output too large. Use `grep` or `summarize` tool instead."*
+*   **价值：** 强制 Agent 保持清醒，避免陷入 "Lost in the Middle" 陷阱。
+
+---
+
+## 4. 核心算法详解 (Key Algorithms)
+
+### 4.1 工业级微服务耗时异常检测 (At Collection Layer)
 为了在数据采集阶段解决“断链”和“漏判”，我们引入了非对称采样的 Z-Score 算法：
 *   **Target (当前):** 取过去 5 分钟内，每分钟平均耗时的**最大值**（捕捉瞬间尖刺）。
 *   **Baseline (历史):** 取过去 1 小时的均值与标准差。
@@ -64,7 +103,7 @@
     *   **对抖动服务宽容:** 自动调高阈值，忽略正常毛刺。
     *   **计算性能:** 这种非对称采样策略大幅降低了 Prometheus 的查询压力，使得“全网扫描”成为可能。
 
-### 3.2 内存加权拓扑挖掘 (At Entry Selection Layer)
+### 4.2 内存加权拓扑挖掘 (At Entry Selection Layer)
 *   **统一竞价:** 不再区分“查报错”还是“查耗时”，将两者统一转化为“破坏力权重”。
 *   **零 IO:** 算法完全基于已采集的 Trace 和异常列表在内存运行，毫秒级产出最佳分析入口。
 
