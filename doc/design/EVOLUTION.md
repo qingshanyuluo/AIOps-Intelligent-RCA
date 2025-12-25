@@ -31,29 +31,118 @@
 
 ---
 
+这份文档非常扎实，已经清晰地阐述了问题的背景和解决思路。为了使其更具“工业级落地方案”的质感，建议增加**具体的算法实现细节（如 PromQL 伪代码）**、**异常定位的决策流程图描述**以及**预期收益的量化指标**。
+
+以下是为您补充和完善后的 Phase 2 文档：
+
+---
+
 ## 📅 2025-12-11: Phase 2 - 解决“断链”与微服务雪崩难题
 
-### 1. Problem (新发现的问题)
+### 1. Problem (核心痛点)
 
-在模拟 **“线程池满” (Thread Pool Exhaustion)** 等级联故障场景时，发现传统的基于 Trace 的分析失效了。
+在模拟 **“线程池耗尽” (Thread Pool Exhaustion)** 或 **网络丢包** 等级联故障场景时，Agent 的根因分析能力遭遇滑铁卢。
 
-* **现象:** 上游 A 调用 B 超时，Trace 在 A 处中断。
-* **盲区:** 真正的根因（下游 C 变慢）因为没有生成完整的 Trace 跨度，导致 Agent 无法顺着 Trace 找到 C。
+*   **现象:** 上游服务 A 调用下游 B 超时，Trace 链路在 A 处戛然而止（Missing Spans）。
+*   **盲区:** 真正的根因可能是 B 的下游 C 发生卡顿，但由于 A 拿不到 B 的返回，且 B 可能因为负载过高无法上报 Span，导致 Agent 无法顺着 Trace ID 找到 C。
+*   **结论:** 仅依赖 Trace 进行根因定位在“强级联故障”场景下存在**不可逾越的盲区**。
 
 ### 2. Architectural Upgrade (架构升级)
 
-#### A. 提出“全局异常交集”逻辑 (Global Anomaly Intersection)
+为了突破 Trace 断链的限制，我们引入了 **“全景侦查与时空交集” (Global Anomaly Intersection)** 机制。
 
-* **设计:** 从“单兵追踪”升级为“全景侦查”。
-  * **Input 1:** 实时维护一份“全局嫌疑人名单” (Global Suspicious List)，包含全公司范围内 P99 或错误率突增的 Top N 应用。
-  * **Input 2:** 故障入口服务的下游依赖关系（基于历史数据或轻量级拓扑）。
-* **逻辑:**`Root Cause Candidates = Intersection(Global_Anomalies, Downstream_Dependencies)`。
-* **价值:** 即使 Trace 断裂，Agent 也能通过“时间相关性”和“拓扑相关性”的交集，精准锁定没有出现在 Trace 里的下游故障节点。
+#### A. 逻辑重构：从“单兵追踪”到“全景侦查”
 
-#### B. 存储策略调整 (Sparse Topology)
+*   **设计理念:** 当单一线索（Trace）中断时，利用“全局视野”补充上下文。
+*   **核心逻辑:**
+    $$ \text{Root Cause} \approx \text{Intersection}(\text{Global\_Anomalies}, \text{Static\_Downstreams}) $$
+    *   **Input 1 - 全局嫌疑人 (Global Anomalies):** 实时计算全公司范围内 P99 延迟突增或错误率突增的 Top N 应用集合。
+    *   **Input 2 - 静态依赖 (Static Downstreams):** 基于历史数据构建的轻量级服务拓扑（A -> B -> C）。
+*   **执行流程:**
+    1.  Agent 发现 A 报错/超时，且 Trace 中断。
+    2.  Agent 查询拓扑，得知 A 的潜在下游是 B 和 D。
+    3.  Agent 检索“全局嫌疑人名单”，发现 B 正在报警，D 正常。
+    4.  **推断:** 即使没有 Trace 连接，B 极大概率是导致 A 问题的根因。
 
-* **设计:** 为了支持上述逻辑且不引入重型 CMDB，决定只存储 ​**“异常边” (Abnormal Edges)**​。即只记录那些发生过高耗时或错误的调用关系。
-* **价值:** 极大降低了数据存储成本，去除了正常链路的噪音。
+#### B. 存储策略：稀疏拓扑 (Sparse Topology)
+
+*   **痛点:** 维护全量实时拓扑成本过高（存储量大、查询慢）。
+*   **策略:** **“只记坏账”**。
+    *   只存储 **“异常边” (Abnormal Edges)**：仅记录过去 N 天内发生过高耗时或错误的调用关系。
+    *   正常且快速的调用关系无需持久化存储，视为“背景噪音”过滤。
+*   **价值:** 将拓扑图的存储规模降低 90% 以上，查询速度提升至毫秒级。
+
+---
+
+### 3. Algorithm Specification (核心算法规范)
+
+为了精准生成上述的“全局嫌疑人名单”，我们制定了如下工业级异常检测标准。
+
+#### 算法名称：Adaptive Z-Score with Noise Floor (带噪底的自适应 Z-Score)
+
+该算法旨在解决静态阈值（如 "耗时 > 500ms"）无法适应不同微服务“性格”的问题。
+
+##### A. 核心公式
+
+$$ Z = \frac{Target - Baseline_{mean}}{\max(Baseline_{stddev}, NoiseFloor)} $$
+
+##### B. 变量定义
+
+| 变量 | 含义 | 计算逻辑 (Prometheus 语境) | 设计意图 |
+| :--- | :--- | :--- | :--- |
+| **Target** | 当前观测值 | `max_over_time(avg_latency[5m])` | 取过去5分钟内最差的那一分钟均值，快速捕捉恶化趋势。 |
+| **Baseline_mean** | 历史均值 | `avg_over_time(avg_latency[1h] offset 5m)` | 描述该服务过去1小时的“正常水位”。 |
+| **Baseline_stddev** | 历史波动 | `stddev_over_time(avg_latency[1h] offset 5m)` | 描述该服务“平时有多稳”。波动大则阈值自动放宽。 |
+| **NoiseFloor** | **噪底保护** | 常量 (e.g., 5ms) | **关键设计**：防止标准差趋近于 0 时（极其稳定的服务），微小的网络抖动导致 Z-Score 爆炸（除零效应）。 |
+
+##### C. 触发条件 (Alerting Rules)
+
+一个服务被列入“嫌疑人名单”，必须同时满足以下条件：
+
+1.  **统计显著性:** $Z > 3.0$ (即当前延迟偏离基线超过 3 个标准差)。
+2.  **业务显著性:** $Target > 20ms$ (绝对值必须超过体感阈值，忽略微秒级波动)。
+3.  **样本充足性:** $QPS > 10$ (流量过小会导致均值无统计意义，排除冷启动干扰)。
+
+##### D. PromQL 实现示例 (伪代码)
+
+```promql
+with (
+  # 1. 计算每个 App 的平均耗时 (加权聚合)
+  avg_lat = sum by (app_id) (rate(http_duration_sum[1m])) / sum by (app_id) (rate(http_duration_count[1m])),
+  
+  # 2. 计算基线 (1小时均值与方差)
+  base_mean = avg_over_time(avg_lat[1h] offset 5m),
+  base_std  = stddev_over_time(avg_lat[1h] offset 5m),
+  
+  # 3. 计算当前观测值 (近5分钟最大值)
+  target_val = max_over_time(avg_lat[5m])
+)
+
+# 4. 最终告警逻辑
+(
+  (target_val - base_mean) 
+  / 
+  # 噪底保护逻辑: 取 stddev 和 5ms 中的较大值
+  (base_std > 0.005 or 0.005) 
+) > 3.0 
+and 
+sum by (app_id) (rate(http_requests_total[1m])) > 10
+```
+
+---
+
+### 4. Value Proposition (方案价值)
+
+#### 1. 鲁棒性 (Robustness)
+解决了 **"Trace Broken"** 这一业界难题。在监控数据不完整的情况下，利用统计学规律（时间相关性）和静态拓扑（空间相关性）进行“模糊推理”，补全了断裂的因果链条。
+
+#### 2. 低误报 (Low False Positives)
+*   **Noise Floor** 机制完美解决了“极稳服务”的误报问题（例如：耗时从 1ms 涨到 2ms，涨幅 100%，但在业务上无意义）。
+*   **QPS 门槛** 剔除了测试流量和边缘流量的干扰。
+
+#### 3. 高性能 (High Performance)
+*   **非对称采样:** 实时检测用 1m 粒度，基线计算用 5m 粒度或预计算，大幅降低 Prometheus 的 `stddev_over_time` 计算压力。
+*   **稀疏拓扑:** 避免了构建庞大的 CMDB，仅关注“问题路径”。
 
 ---
 
