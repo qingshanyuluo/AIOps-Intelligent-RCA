@@ -485,7 +485,11 @@ sum by (app_id) (rate(http_requests_total[1m])) > 10
 * **认知升级:** Agent 学会了“微服务无贵贱，位置定乾坤”的道理，不再被高大上的服务命名迷惑。
 * **长尾价值:** 这套“反偏见”机制后来被复用到 Database 字段解析中，防止模型错误地将 `is_deleted: 1` 的数据当作有效数据处理（仅凭字段名看起来像是有用的数据）。
 
+## 📅 2025-12-26: Phase 10 - 放弃ReAct Agent架构，固定sop化+llm联系表象+反事实推论输出最终结论
 
+理由见：[幻觉与现实：从 ReAct 智能体到确定性工作流 —— 我在 AIOps 根因定位中的“祛魅”之旅](https://github.com/qingshanyuluo/AIOps-Intelligent-RCA/blob/main/docs/blog/%E5%B9%BB%E8%A7%89%E4%B8%8E%E7%8E%B0%E5%AE%9E%EF%BC%9A%E4%BB%8E%20ReAct%20%E6%99%BA%E8%83%BD%E4%BD%93%E5%88%B0%E7%A1%AE%E5%AE%9A%E6%80%A7%E5%B7%A5%E4%BD%9C%E6%B5%81%20%E2%80%94%E2%80%94%20%E6%88%91%E5%9C%A8%20AIOps%20%E6%A0%B9%E5%9B%A0%E5%AE%9A%E4%BD%8D%E4%B8%AD%E7%9A%84%E2%80%9C%E7%A5%9B%E9%AD%85%E2%80%9D%E4%B9%8B%E6%97%85.md)
+
+我搭出了完美的ReAct根因分析agent，却发现此场景模型本身根本没有能力自主决策，转为更成熟的架构。这套架构最终在公司过去两月的异常分析上准确率达到了95%
 
 ## 🔮 Future Roadmap (未来规划)
 
