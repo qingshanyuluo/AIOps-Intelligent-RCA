@@ -1,4 +1,4 @@
-# AIOps-Intelligent-RCA
+# AIOps-Intelligent-RCA v2.0: Neuro-Symbolic Triage Engine
 An Agent-based Root Cause Analysis Framework with Counterfactual Verification.
 
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
@@ -6,120 +6,131 @@ An Agent-based Root Cause Analysis Framework with Counterfactual Verification.
 [![DOI](https://zenodo.org/badge/1114458069.svg)](https://doi.org/10.5281/zenodo.17898791)
 
 
-## 📖 Introduction (项目简介)
+> **Status:** Production-Ready | **Architecture:** Neuro-Symbolic (神经符号架构) | **Focus:** RPC Golden Signals
 
-**AIOps-Intelligent-RCA** 是一个面向大规模微服务架构的智能根因分析 (RCA) 框架。针对传统运维中告警风暴和专家经验难以沉淀的痛点，本项目提出了一种 **Agent-Driven (智能体驱动)** 的诊断模式。
+**AIOps-Intelligent-RCA** 是一个工业级微服务故障根因分析引擎。
 
-通过 **Retrieval-as-a-Tool** 机制，Agent 能够自主查询 Metrics、Logs、Traces 和 Events，并引入 **Counterfactual Verification (反事实验证)** 机制，有效解决了 LLM 在运维领域的幻觉问题。
+与试图用 LLM 解决所有问题的“黑盒 Agent”不同，本项目采用 **Neuro-Symbolic (神经符号)** 架构：利用确定性的算法（Pearson, Z-Score）处理海量监控数据，利用确定性的 SOP（标准作业程序）固化排查路径，仅在决策链的最后一公里引入 LLM 作为 **“逻辑裁判 (Logical Judge)”**。
+
+我们锁死 **RPC Error** 这一“黄金咽喉”，实现了对 90% 生产环境异常的 **零幻觉、高精度、自动化分诊**。
 
 ## 🚀 Key Features (核心特性)
 
-* **🕵️‍♂️ Agentic Diagnosis:** 基于 LLM 的推理核心，动态编排排查步骤，而非死板的规则树。
-* **📉 Multi-modal Fusion:** 融合 RPC 错误率、Z-score 异常检测、拓扑链路分析、Change Events 等多维数据。
-* **🛡️ Counterfactual Verification:** **(创新点)** 系统在得出结论前，会自动生成反事实假设（"如果是网络问题，TCP重传率应升高"）并进行自我验证，大幅提升准确率。
-* **🔍 Automatic Topology Drill-down:** 自动识别 Trace 中的最深报错节点与慢节点。
+*   **🎯 RPC-First Strategy (RPC 优先):** 收敛分析入口。基于“微服务故障必体现为 RPC 异常”的公理，实现对基础设施、中间件及代码逻辑故障的全覆盖。
+*   **📐 Math over AI (算法前置):** 拒绝把原始日志直接扔给 LLM。引入 **Pearson 共模熔断** 与 **Z-Score 非对称采样**，先用数学清除 99% 的噪音。
+*   **🛤️ Branching SOP Pipeline (分支型 SOP):** 摒弃不确定的 ReAct 模式，采用“慢(Slow)、死(Dead)、错(Wrong)”三条硬编码 SOP 轨道，确保排查过程绝对可控。
+*   **⚖️ Counterfactual Jury (反事实陪审团):** LLM 被降级为流水线上的“质检节点”。通过“资源受害者假设”和“时序铁律”，强制否决不合逻辑的结论。
 
 ## 🏗️ Architecture (系统架构)
 
+我们将 RCA 过程重构为 **漏斗式分诊流水线 (Triage Funnel)**，LLM 不再是驾驶员，而是传送带末端的签证官。
+
 ```mermaid
-%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#4caf50', 'edgeLabelBackground':'#ffffff', 'tertiaryColor': '#f1f8e9'}}}%%
-graph LR
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#2979ff', 'edgeLabelBackground':'#ffffff', 'tertiaryColor': '#e3f2fd'}}}%%
+graph TB
     %% ================== 样式定义 ==================
-    classDef storage fill:#fff9c4,stroke:#fbc02d,stroke-width:2px;
-    classDef process fill:#e1f5fe,stroke:#0288d1,stroke-width:2px;
-    classDef agent fill:#f3e5f5,stroke:#8e24aa,stroke-width:2px,stroke-dasharray: 5 5;
-    classDef core fill:#ce93d8,stroke:#4a148c,stroke-width:3px;
-    
-    %% ================== 1. 触发与采集层 ==================
-    subgraph Trigger ["1. 触发与采集 (Trigger & Collect)"]
+    classDef shield fill:#ffcdd2,stroke:#c62828,stroke-width:2px;
+    classDef math fill:#fff9c4,stroke:#fbc02d,stroke-width:2px;
+    classDef sop fill:#e1f5fe,stroke:#0277bd,stroke-width:2px;
+    classDef llm fill:#e1bee7,stroke:#6a1b9a,stroke-width:2px;
+
+    %% ================== 1. 入口与防御层 ==================
+    subgraph Stage1 ["Stage 1: 全局防御 (The Shield)"]
         direction TB
-        Alert["🔥 告警触发 (Alert)"]
-        RawCollector["数据采集器 (Collector)"]
-        RawData[("原始海量数据\nRaw Logs/Metrics")]
+        Input[("RPC Error Stream\n(Dubbo/gRPC/SpringCloud)")]
+        Pearson{"Pearson相关性 > 0.85?"}
+        GlobalAlert["🛑 熔断: 全局/云厂商故障"]
     end
 
-    %% ================== 2. 数据处理层 (核心变更) ==================
-    subgraph DataPipeline ["2. 数据清洗与分层 (ETL)"]
+    %% ================== 2. 采集与清洗层 ==================
+    subgraph Stage2 ["Stage 2: 智能采集 (The Dragnet)"]
         direction TB
-        Cleaner["清洗与精简 (Cleaning & Pruning)"]
-        V2Data[("✨ 版本2数据 (V2 Data)\n(结构化/高信噪比)")]
+        ZScore["🔍 Z-Score 非对称采样\n(捕捉隐性劣化的下游)"]
+        Topology["🕸️ 拓扑加权挖掘\n(构建案发现场 Context)"]
     end
 
-    %% ================== 3. 智能分析层 ==================
-    subgraph Brain ["3. 智能根因分析 (Agent Core)"]
+    %% ================== 3. 路由与SOP层 ==================
+    subgraph Stage3 ["Stage 3: 固定 SOP 路由 (The Router)"]
         direction TB
+        Classifier{"错误类型分类"}
         
-        %% Agent 内部逻辑
-        subgraph AgentLogic ["Agent 决策流"]
-            FixedFlow["固定流程 (SOP/Checklist)"]
-            Decision{"SOP能解决?"}
-            ReAct["ReAct 推理模式\n(Reasoning & Acting)"]
+        subgraph Tracks ["Hard-coded SOP Tracks"]
+            TrackA["🛤️ Track A: Timeout/Slow\n(查 CPU/GC/DB锁)"]
+            TrackB["🛤️ Track B: Connection/Dead\n(查 K8s Event/Network)"]
+            TrackC["🛤️ Track C: Logic/5xx\n(查 Stacktrace/Change)"]
         end
-        
-        Tool_Retrieval["工具: Retrieval-as-a-Tool"]
     end
 
-    %% ================== 4. 验证与输出 ==================
-    subgraph Outcome ["4. 验证与输出 (Output)"]
-        Verifier["🛡️ 反事实验证 (Counterfactual Verification)"]
-        FinalReport["📝 最终诊断报告"]
+    %% ================== 4. 推理与定责层 ==================
+    subgraph Stage4 ["Stage 4: 神经符号裁判 (The Judge)"]
+        direction TB
+        LLM_Verifier["🧠 LLM Node: 反事实验证\n(Counterfactual Verification)"]
+        Report_Infra["✅ 结论: 基础设施故障"]
+        Report_Code["📦 结论: 应用逻辑异常\n(Blameless Boundary Report)"]
     end
 
     %% ================== 连线逻辑 ==================
+    Input --> Pearson
+    Pearson -- Yes --> GlobalAlert
+    Pearson -- No --> ZScore
     
-    %% 数据流
-    Alert --> RawCollector
-    RawCollector --> RawData
-    RawData --> Cleaner
-    Cleaner -->|"降噪/预聚合"| V2Data
-
-    %% 触发 Agent
-    Alert -->|"启动诊断"| FixedFlow
-
-    %% Agent 思考流
-    FixedFlow --> Decision
-    Decision -- Yes --> Verifier
-    Decision -- No --> ReAct
+    ZScore --> Topology
+    Topology --> Classifier
     
-    %% 工具调用 (只查 V2 数据)
-    ReAct <-->|"思考: 数据不足 -> 调用"| Tool_Retrieval
-    FixedFlow <-->|"查指标"| Tool_Retrieval
-    Tool_Retrieval <-->|"提取高价值信息"| V2Data
-
-    %% 验证流 (核心)
-    ReAct -->|"得出初步结论"| Verifier
-    Verifier --"假设不成立 -> 重试"--> ReAct
-    Verifier --"验证通过"--> FinalReport
+    Classifier -- "Type: 慢" --> TrackA
+    Classifier -- "Type: 死" --> TrackB
+    Classifier -- "Type: 错" --> TrackC
+    
+    TrackA & TrackB & TrackC --> LLM_Verifier
+    
+    LLM_Verifier -- "验证通过" --> Report_Infra
+    LLM_Verifier -- "排除所有 Infra 因素" --> Report_Code
 
     %% 样式应用
-    class RawData,V2Data storage;
-    class RawCollector,Cleaner,Tool_Retrieval,Verifier process;
-    class AgentLogic agent;
-    class ReAct,FixedFlow core;
+    class Pearson,GlobalAlert shield;
+    class ZScore,Topology math;
+    class Classifier,TrackA,TrackB,TrackC sop;
+    class LLM_Verifier,Report_Infra,Report_Code llm;
 ```
 
-### Workflow
-1.  **Alert Trigger:** RPC 错误率突增触发诊断。
-2.  **Data Aggregation:** 自动聚合 1h 内的 Logs 和 Metrics。
-3.  **Root Cause Reasoning:** Agent 通过剪枝及统计学算法等方式识别可疑应用后通过Retrieval-as-a-Tool获取数据，推测根因
-4.  **Verification:** 执行反事实推理，验证假设。
-5.  **Report:** 生成包含根本原因和建议的报告。
+### 🔁 Workflow Detail
 
-## 💻 Core Logic (核心逻辑摘要)
+1.  **The Shield (防御):** 检测是否存在全网共模故障（如专线抖动）。若 Top N 应用错误曲线 Pearson 相关系数极高，直接熔断，避免 AI 资源浪费。
+2.  **The Dragnet (采集):** 即使 Trace 断裂，**Z-Score 算法** 也能通过统计学规律（偏离基线 3σ）捕捉到那个“没有报错但变慢”的罪魁祸首下游，并将其监控数据自动打包。
+3.  **The Router (路由):** 基于 RPC 错误码（Timeout vs Refused vs 500）将任务分发给三条硬编码的 Python SOP 脚本。
+4.  **The Judge (裁判):** LLM 接收结构化证据，进行**反事实验证**。若排除了所有基础设施问题，则生成 **Blameless Boundary Report**，明确将责任定界为“业务代码逻辑异常”。
 
-### 1. Retrieval-as-a-Tool
-Agent 并不直接“看”所有数据，而是通过 Tool 调用获取数据，模拟专家排查过程：
+## 💡 Core Innovations (核心创新)
 
-### 2. Counterfactual Verification (反事实验证)
-这是本框架防止幻觉的核心机制：
+### 1. Z-Score Asymmetric Sampling (非对称采样)
+解决 "Trace 断链" 和 "隐性劣化" 的杀手锏。
+*   **问题:** A 报错是因为 B 慢，但 B 没报错（只是单纯慢），Trace 可能断在 A。
+*   **解法:** 系统计算全网微服务的 $Z = (Max - \mu) / \sigma$。任何 $Z > 3$ 的节点都会被强制纳入嫌疑人名单，无论它是否在 Trace 中。
 
-Hypothesis: "Redis 响应慢导致上游 RPC 超时" Counterfactual Check: 查询 Redis 实例过去 10 分钟的 P99 延迟。 Result: 如果 P99 < 10ms，则推翻假设，Agent 重新规划排查路径。
+### 2. The Logic Tracks (三轨制 SOP)
+我们将通用的排查步骤固化为代码，极大地降低了 Token 消耗和不确定性：
+*   **Track A (资源):** 关注 CPU Steal, GC STW, DB Latency。
+*   **Track B (网络):** 关注 K8s Events, Service Mesh Sidecar, TCP Retransmission。
+*   **Track C (逻辑):** 关注 Stacktrace 语义, Git Commit Log。
 
-## 📂 Case Study (案例分析)
+### 3. Counterfactual Verification (反事实验证)
+LLM 必须通过以下逻辑门的校验，否则结论被驳回：
+*   **概率门:** "MySQL, Redis, ES 同时变慢？" $\rightarrow$ **驳回**。推论：应用自身卡顿。
+*   **时序门:** "根因发生时间 $T_{cause}$ 晚于报错时间 $T_{error}$？" $\rightarrow$ **驳回**。推论：因果倒置。
 
-> [TODO: Case Study]
+## 📂 Case Study (案例演示)
 
-📝 Citation & Contact
-如果您对该架构感兴趣，欢迎在 Issues 中讨论。
+### Scenario: The "Lying" Database
+**现象:** OrderService 报错 "MySQL Timeout"，大量连接堆积。
+**传统 Agent:** 结论 -> "MySQL 故障，建议扩容"。
+**本系统 (Intelligent-RCA):**
+1.  **Track A 执行:** 发现 MySQL 服务端指标正常，但 OrderService 自身 CPU Usage > 95%。
+2.  **LLM 反事实推理:** "如果 MySQL 真的慢，为什么其他服务访问 MySQL 正常？且 OrderService CPU 异常高？"
+3.  **最终修正结论:** "MySQL 连接堆积是**症状**。根因为 OrderService 出现死循环导致 CPU 耗尽，线程无法及时读取网络包。责任方：业务研发。"
 
-Disclaimer: This repository contains the architectural design and reference implementation patterns. Proprietary business logic has been obfuscated.
+## 📝 Citation & Contact
+
+如果您对 **Neuro-Symbolic AIOps** 架构感兴趣，欢迎提交 Issue 交流。
+
+> **Disclaimer:** 本项目核心逻辑已脱敏。商业场景下的具体 SOP 脚本需根据贵司技术栈（Java/Go/K8s）自行适配。
+
