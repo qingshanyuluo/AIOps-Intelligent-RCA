@@ -17,9 +17,9 @@ An Agent-based Root Cause Analysis Framework with Counterfactual Verification.
 
 这是一个面向微服务架构的**垂直领域智能诊断平台**。
 
-针对大规模分布式系统中“告警风暴”与“故障定位难”的痛点，本项目摒弃了传统的规则匹配模式，构建了一套**“基于链路权重定位 + 贝叶斯统计去噪 + LLM 分层推理”**的自动化诊断管道。
+针对大规模分布式系统中“告警风暴”与“故障定位难”的痛点，本项目摒弃了传统的“规则匹配”或单纯的“最深报错节点”逻辑，构建了一套**“基于 Trace 聚合挖掘的入口纠偏 + 错误率梯度定界 + LLM 分层推理”**的自动化诊断管道。
 
-系统能够自动屏蔽网络抖动噪点，精准锁定异常入口，并利用大模型（LLM）的多模态推理能力，实现从“故障发生”到“根因报告生成”的分钟级自动化闭环。
+系统通过**内存图折叠技术**自动修正“受害者误报”，利用**统计物理学原理**屏蔽网络抖动，并利用大模型（LLM）的多模态推理能力，实现从“故障发生”到“根因报告生成”的分钟级自动化闭环。
 
 ---
 
@@ -32,17 +32,17 @@ An Agent-based Root Cause Analysis Framework with Counterfactual Verification.
 * **[核心算法概念 (Core Concepts)](docs/design/CORE_CONCEPTS.md)**
     
     * 详解 **链路权重定位算法** 的权重因子设计。
-    * 阐述 **贝叶斯网络** 在排除底层网络抖动中的数学原理。
+    * 阐述 **贝叶斯似然比** 在排除底层网络抖动中的数学原理。
     * 展示 **LLM 分层推理** 的 Prompt 结构与模拟案例。
+
 * **[架构演进复盘 (Architecture Evolution)](docs/design/EVOLUTION.md)**
     
-    * 记录系统从 v1.0 (规则引擎) 到 v2.0 (统计分析) 再到 v3.0 (生成式诊断) 的重构历程与技术决策。
+    * 记录系统从 v1.0 (反事实假设ReactAgent) 到 v2.0 (统计算法+固定SOP+LLM推论节点) 的重构历程与技术决策。
 
 ### 💡 工程思考与博客
 
-* **[大模型如何理解监控数据？](blog/llm_observability.md)** —— 探讨 Metrics-to-Text 的特征工程与上下文窗口优化。
-* **[告警风暴下的“静默”艺术](blog/noise_reduction.md)** —— 关于分布式系统中级联故障识别的理论思考。
-
+* **[专线抖动异常检测算法](blog/专线抖动异常检测算法.md)** —— 探讨简单的应用错误率呈阶梯分布判断网络专线抖动为什么准
+* **[幻觉与现实：从 ReAct 智能体到确定性工作流 —— 我在 AIOps 根因定位中的“祛魅”之旅](blog/幻觉与现实：从%20ReAct%20智能体到确定性工作流%20——%20我在%20AIOps%20根因定位中的“祛魅”之旅.md)** —— 关于我在做出完善ReAct模式Agent后为什么选择放弃
 ---
 
 ## ⚡ 核心处理流程
@@ -51,7 +51,7 @@ An Agent-based Root Cause Analysis Framework with Counterfactual Verification.
 
 ```mermaid
 graph LR
-    A[🚨 告警爆发] --> B(📍 入口定位)
+    A[🚨 RPC错误数告警爆发] --> B(📍 入口定位)
     B --> C{🌪️ 噪音过滤}
     C -->|有效故障| D[📊 多模态抓取]
     D --> E[🧠 LLM 分层推理]
@@ -62,7 +62,7 @@ graph LR
 ```
 
 1. **定位 (Locate)**：基于加权传播算法，在错综复杂的调用链中锁定“故障源头应用”。
-2. **去噪 (Filter)**：利用贝叶斯推论分析全网报错特征，自动排除专线抖动等非应用层故障。
+2. **去噪 (Filter)**：基于“错误率梯度”的故障定界 (Error Rate Gradient Localization)
 3. **感知 (Sense)**：动态抓取 Metrics、Logs、K8s Events 及上下游变更记录。
 4. **推理 (Reason)**：将多模态数据转化为自然语言上下文，驱动 LLM 进行因果推断。
 
