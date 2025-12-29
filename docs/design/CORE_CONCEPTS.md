@@ -74,20 +74,28 @@
     *   **保持“报错” (Error-Dominant):** 若权重主要由 `ErrorCount` 贡献，则保持原有逻辑，分析**报错节点**。
 *   **价值：** 此阶段用纯数学方法替代了“最深报错节点”的启发式规则，确保后续的 SOP 和 LLM 推理，都聚焦在经过验证的、真正的瓶颈之上。
 
-### Stage 3: 分支型 SOP 路由 (The Router)
-**解决痛点：** 通用 Prompt 无法处理特异性故障。
+### Stage 3: 证据深化与现场重建 (The Investigator)
+**解决痛点：** 单一的入口信息不足以定因，必须围绕入口进行多维度的证据勘探，并确认是否存在“共同犯罪”。
 
-这是本架构彻底摒弃 ReAct 的关键。我们不让 LLM 决定怎么查，而是根据 RPC 错误类型，**硬编码**进入三条完全不同的 SOP 轨道：
+此阶段不再是简单的路由，而是围绕 Stage 2 确定的核心嫌疑对象，进行的一场**深度犯罪现场调查 (CSI)**：
 
-1.  **轨道 A (Type: Slow / Timeout):**
-    *   **特征:** `SocketTimeout`, `ReadTimeout`, P99 飙升。
-    *   **SOP 侧重:** 资源饱和度分析 (CPU Steal, GC Stop-the-world, DB Lock)。
-2.  **轨道 B (Type: Dead / Unreachable):**
-    *   **特征:** `ConnectionRefused`, `NoRouteToHost`, `UnknownHost`.
-    *   **SOP 侧重:** 编排状态与网络分析 (K8s Pod Status, Service Mesh Config, Liveness Probe)。
-3.  **轨道 C (Type: Wrong / Logic):**
-    *   **特征:** `5xx`, `NullPointer`, `BusinessException`.
-    *   **SOP 侧重:** 代码堆栈语义分析 (Stacktrace Parsing, Git Blame, Config Change)。
+1.  **日志趋势突变检测 (Log Spike Detection):**
+    *   **算法:** 对嫌疑应用的日志进行在线聚类（Log Clustering），然后对每个模式（Pattern）的出现频率进行时间序列异常检测。
+    *   **目标:** 自动发现“昨天还很罕见，今天突然暴增”的错误日志类型，锁定新的、意料之外的异常。
+
+2.  **核心指标语义化 (Metric Semantic Analysis):**
+    *   **动作:** 采集与嫌疑场景强相关的“黄金指标”（如超时场景下的 GC、CPU Steal、连接池）。
+    *   **语义化:** 将原始的指标异动翻译成结构化的“SRE 语言”。例如，`cpu_steal > 0.5` 会被标记为 `{event: "CPU被云厂商抢占", level: "critical"}`，供后续 LLM 直接理解。
+
+3.  **变更信息精简 (Change Distillation):**
+    *   **动作:** 拉取所有相关的变更事件（发布、配置变更、基础设施变更）。
+    *   **精简:** 通过时间窗口（事发前 X 小时）和拓扑关系（仅限嫌疑应用及其上下游）进行过滤，将海量变更信息精简为一份高度相关的“变更嫌疑列表”。
+
+4.  **递归式现场扩展 (Recursive Scene Expansion):**
+    *   **核心逻辑:** 真正的根因可能不在最初的嫌疑人身上，而在其高流量的下游。
+    *   **动作:** 系统会检查核心嫌疑人的高流量下游依赖，并**递归地对这些下游执行相同的“Z-Score 异动检测(stage 0 已做)”**。如果发现下游也存在自身异常（而非被上游拖累），系统会将其自动纳入“案发现场”，并采集其全套证据。
+    *   **输出:** 构建出一张包含所有异常节点的**“故障全景图 (Incident Panorama)”**。
+
 
 ### Stage 4: 神经符号推理与定责 (The Judge)
 **解决痛点：** 最终定性与“责任甩锅”。
