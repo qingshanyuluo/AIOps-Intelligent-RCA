@@ -49,6 +49,10 @@
     *   **内存图构建 (In-Memory Graph):** 无需外部图数据库，直接在内存中将批量错误 Trace **折叠 (Folding)** 成一个局部加权拓扑图。
     *   **统一权重公式 (The Resistance Formula):** 对图中的每条**边 (Edge)** 计算其“破坏力权重”，寻找链路中的“最大阻力点”。
     $$W_{edge} = \underbrace{(AvgLat \times SpanCount)}_{\text{交互耗时 (含N+1)}} + \underbrace{\sum(ClientDur - ServerDur)}_{\text{网络/GC等传输损耗}} + \underbrace{(ErrorCount \times K)}_{\text{稳定性惩罚}}$$
+
+    <img width="886" height="104" alt="image" src="https://github.com/user-attachments/assets/641af63d-7744-4032-a38e-01b0c80222ae" />
+
+
 *   **动态入口纠偏 (Dynamic Entry Rectification):** 根据权重计算结果，**强制校准**分析入口。
     *   **纠偏至“边” (Edge-Dominant):** 若某条边的 `SpanCount` 或 `传输损耗` 极高，则判定为**交互/网络问题**（如 N+1 查询、网络丢包），LLM 将被引导关注调用关系而非下游代码。
     *   **纠偏至“节点” (Node-Dominant):** 若某节点的 `Self-Time`（自身耗时）远超其出边权重，则判定为**自身计算问题**（如 CPU 密集、死循环），LLM 将被引导关注该节点内部逻辑。
