@@ -150,24 +150,7 @@
 
 ---
 
-## 4. 算法引擎详解 (The Math behind the Magic)
-
-我们坚持：**能用数学解决的，绝不问 LLM。**
-
-### 4.1 Z-Score 异常检测 (用于 Stage 2)
-用于在茫茫微服务中，精准定位那个“沉默但致命”的下游节点。
-$$Z = \frac{\text{CurrentMax} - \mu}{\sigma + \text{NoiseFloor}}$$
-*   **NoiseFloor:** 保护机制，防止低流量服务的数学误报。
-*   **作用:** 即使没有报错日志，只要耗时违背了正态分布，就会被“抓”出来送给 LLM 审判。
-
-### 4.2 拓扑加权挖掘 (用于 Stage 2)
-不再盲目扫描所有依赖，而是计算“破坏力权重”：
-$$W = (\text{Latency} \times \text{QPS}) + (\text{ErrorCount} \times 10)$$
-*   **策略:** 优先采集权重 $W$ 最高的 Top 3 依赖节点的数据。
-
----
-
-## 5. 总结：工业级的克制
+## 4. 总结：工业级的克制
 
 **AIOps-Intelligent-RCA v2.0** 代表了一种架构上的成熟与克制。
 
