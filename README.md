@@ -78,7 +78,7 @@ graph LR
 * **递归深挖 (Recursive Analysis)**：不仅仅关注报错节点，算法会自动递归扫描**高流量下游**及**自生耗时突增**的依赖服务。这能有效揪出那些“未报错但拖死上游”的隐性根因。
 * **Metric 异常检测**：集成多种 **Z-Score 变体**（如 Robust Z-Score），动态扫描 CPU、Memory、IO 及 JVM 指标，精准识别偏离正态分布的突变点。
 * **Log 聚类与背景抑制**：
-    * 采用 **Drain/DBSCAN** 算法将海量日志聚类为核心模板（Template）。
+    * 放弃原始日志，查询日志聚类+Sample的方式
     * **关键步骤**：引入“背景噪声过滤”机制，对比历史正常时段，自动剔除那些“日常就有、低影响”的无关报错，只保留故障期间**新增或频率激增**的异常日志。
 
 ### 4. 推理 (Reason) —— *Compression & Counterfactual Verification*
@@ -86,7 +86,7 @@ graph LR
 采用确定性的分层工作流（SOP），先“读薄”再“推断”：
 
 * **语义压缩 (Information Compression)**：L1 节点并不直接推断根因，而是强制要求 LLM 将复杂的 Metrics 突变和 Log 聚类结果**翻译**为简练的自然语言摘要（Summary）。强制模型进行初步总结，同时不丢失原始信息
-* **反事实验证 (Counterfactual Verification)**：在得出初步结论后，引入独立的 **Reviewer Agent** 进行自我驳斥。
+* **反事实验证 (Counterfactual Verification)**：在得出初步结论后，引入 **Reviewer Node** 进行自我驳斥。
     * *示例*：“Agent 假设根因是 GG 拖累。Reviewer 提出反事实：‘如果Gc问题，会所有节点一起有问题吗？会线程Dump中大量blocked吗’ —— 进而倒逼llm重新检索是否是下游变慢拖累上游”
 
 
@@ -98,9 +98,8 @@ graph LR
 * **统计与算法**:
   * **Trace Mining**: Weighted Topology Propagation
   * **Anomaly Detection**: **Robust Z-Score**, 3-Sigma
-  * **Log Mining**: **Drain3** / **DBSCAN** (Clustering & Noise Filtering)
 * **大模型工程**:
-  * **Framework**: LangChain (Custom Graph)
+  * **Framework**: LangGraph
   * **Flow**: **SOP** (Summarize -> Reason -> Verify)
   * **Verification**: **Counterfactual Prompting**
 * **数据源**: Prometheus, ELK, Clickhouse
