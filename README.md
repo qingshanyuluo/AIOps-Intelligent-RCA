@@ -17,9 +17,10 @@ An Agent-based Root Cause Analysis Framework with Counterfactual Verification.
 
 这是一个面向微服务架构的**垂直领域智能诊断平台**。
 
-针对大规模分布式系统中“告警风暴”与“故障定位难”的痛点，本项目摒弃了传统的“规则匹配”或单纯的“最深报错节点”逻辑，构建了一套**“基于 Trace 聚合挖掘的入口纠偏 + 错误率梯度定界 + LLM 分层推理”**的自动化诊断管道。
+针对大规模分布式系统中“告警风暴”与“故障定位难”的痛点，本项目构建了一套**“基于 Trace 拓扑定位 + 统计学特征提取 + LLM 分层反事实推理”**的自动化诊断管道。
 
-系统通过**内存图折叠技术**自动修正“受害者误报”，利用**统计物理学原理**屏蔽网络抖动，并利用大模型（LLM）的多模态推理能力，实现从“故障发生”到“根因报告生成”的分钟级自动化闭环。
+系统采用**神经符号（Neuro-Symbolic）架构**：前端利用**Z-Score、日志聚类**等统计算法精准提取异常特征（符号化），后端利用 **LLM 进行因果推断与反事实验证**（神经连接），实现从“故障发生”到“根因报告生成”的分钟级自动化闭环。
+
 
 ---
 
@@ -47,24 +48,40 @@ An Agent-based Root Cause Analysis Framework with Counterfactual Verification.
 
 ## ⚡ 核心处理流程
 
-系统通过以下四步完成自动化诊断：
+系统通过 **“全局定位 -> 局部感知 -> 逻辑推理”** 三阶段完成诊断：
 
 ```mermaid
 graph LR
-    A[🚨 RPC错误数告警爆发] --> B(📍 入口定位)
-    B --> C{🌪️ 噪音过滤}
-    C -->|有效故障| D[📊 多模态抓取]
-    D --> E[🧠 LLM 分层推理]
-    E --> F[📝 生成根因报告]
+    A[🚨 告警爆发] --> B(📍 全局定位 Locate)
+    B --> C{🌪️ 噪音过滤 Filter}
+    C -->|锁定故障服务| D[📉 统计感知 Sense]
+    D --> E[🧠 神经推理 Reason]
+    E --> F[📝 报告生成 Report]
     
     style A fill:#f9f,stroke:#333
-    style F fill:#9f9,stroke:#333
+    style D fill:#ff9,stroke:#333
+    style E fill:#9f9,stroke:#333
 ```
 
-1. **定位 (Locate)**：基于加权传播算法，在错综复杂的调用链中锁定“故障源头应用”。
-2. **去噪 (Filter)**：基于“错误率梯度”的故障定界 (Error Rate Gradient Localization)
-3. **感知 (Sense)**：动态抓取 Metrics、Logs、K8s Events 及上下游变更记录。
-4. **推理 (Reason)**：将多模态数据转化为自然语言上下文，驱动 LLM 进行因果推断。
+### Phase 1: 定位与定界 (Locate & Filter)
+
+* **Trace 聚合挖掘**：基于加权传播算法，在错综复杂的调用链中锁定真正的“故障源头”而非受害者。
+* **梯度故障定界**：基于错误率分布的梯度特征，自动区分“单点应用故障”与“底层网络抖动”。
+
+### Phase 2: 多模态感知 (Sense) —— *Statistical Feature Extraction*
+
+一旦锁定目标服务，系统不直接将原始数据丢给 LLM，而是通过统计算法进行**特征工程**：
+
+1. **Metric 异常检测**：使用 **Z-Score (标准分数)** 算法扫描 CPU、Memory、IO 及 JVM 指标，识别偏离正态分布的突变点。
+2. **Log 语义压缩**：采用 **Drain/DBSCAN** 算法对海量错误日志进行聚类，提取核心报错模板（Template），将百万行日志压缩为几条关键特征描述。
+
+### Phase 3: 神经符号推理 (Reason) —— *LLM Reasoning & Verification*
+
+将上述“符号化”的特征组装成 Prompt，驱动 LLM 执行**分层推理**：
+
+1. **SOP 分层诊断**：遵循 `现象确认 -> 异常关联 -> 根因推断` 的思维链（Chain of Thought），避免模型发散。
+2. **反事实验证 (Counterfactual Verification)**：LLM 自主提出假设（“如果排除 GC 问题，错误是否依然存在？”），并通过检索上下游证据进行自我驳斥或确认，大幅降低幻觉率。
+
 
 ---
 
