@@ -1,5 +1,4 @@
 # AIOps-Intelligent-RCA v2.0: Neuro-Symbolic Triage Engine
-An Agent-based Root Cause Analysis Framework with Counterfactual Verification.
 
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Status](https://img.shields.io/badge/status-Research_Prototype-orange.svg)]()
