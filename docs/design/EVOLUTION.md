@@ -55,7 +55,9 @@
 
 *   **设计理念:** 当单一线索（Trace）中断时，利用“全局视野”补充上下文。
 *   **核心逻辑:**
-    $$ \text{Root Cause} \approx \text{Intersection}(\text{Global\_Anomalies}, \text{Static\_Downstreams}) $$
+
+$$ \mathrm{Root\ Cause} \approx \mathrm{Intersection}(\mathrm{Global\_Anomalies}, \mathrm{Static\_Downstreams}) $$
+
     *   **Input 1 - 全局嫌疑人 (Global Anomalies):** 实时计算全公司范围内 P99 延迟突增或错误率突增的 Top N 应用集合。
     *   **Input 2 - 静态依赖 (Static Downstreams):** 基于历史数据构建的轻量级服务拓扑（A -> B -> C）。
 *   **执行流程:**
