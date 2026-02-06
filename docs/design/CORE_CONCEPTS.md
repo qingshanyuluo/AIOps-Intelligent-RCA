@@ -90,12 +90,37 @@
 *   **带噪底的自适应 Z-Score (Adaptive Z-Score with Noise Floor):** 用于 Stage 0。此算法在传统 Z-Score 基础上增加了对稳定“噪声”的识别，能精准识别出那些“行为反常”（如耗时显著偏离自身历史基线）的服务，即使它们尚未报错。
 *   **基于“错误率梯度”的故障定界算法 (Error Rate Gradient-based Fault Localization):** 用于 Stage 1。通过计算和比较归一化后服务错误率的**梯度（倍数差）**，快速区分是影响面广的“平台型”故障（梯度平缓），还是由单点爆发的“断崖型”故障（梯度陡峭）。
 
-### 3.2 拓扑瓶颈定位算法
-*   **基于 Trace 聚合的加权拓扑挖掘 (Trace-Aggregated Weighted Mining):** 用于 Stage 2 的核心。它通过一个统一的“阻力”公式，量化分布式调用链路中每个环节的破坏力。
 
-    $$W_{edge} = \underbrace{(AvgLat \times SpanCount)}_{\text{交互耗时 (含N+1)}} + \underbrace{\sum(ClientDur - ServerDur)}_{\text{网络/GC等传输损耗}} + \underbrace{(ErrorCount \times K)}_{\text{稳定性惩罚}}$$
-    
-    该算法无需外部图数据库，直接在内存中将批量 Trace **折叠 (Folding)** 成加权图，动态找出链路中的“最大阻力点”。
+### 3.2 基于基线偏差的加权拓扑挖掘 (Baseline Deviation Weighted Mining)
+
+* **核心逻辑更新**：用于 Stage 2。原有的绝对值阻力模型已被弃用，改为**“偏差增益模型”**。该算法不再单纯累加当前的耗时或错误数，而是计算当前指标相对于该节点**历史基线（Rolling Baseline）**的偏离程度。
+* **解决痛点**：通过计算 （增量），有效规避了固定阈值带来的误判。
+* *场景应对*：若前置节点 A 耗时从 10ms 激增至 2s（ 极大），导致后置节点 B 超时报错但自身耗时很短（ 极小）。算法将赋予节点 A 极高的权重，从而正确跳过报错点 B，定位到真正的延迟根因 A。
+
+
+#### 修正后的权重公式
+
+$$W_{edge} = \underbrace{SpanCount \times (AvgLat_{curr} - AvgLat_{base})}_{\text{计算耗时偏差 (Computation Deviation)}} + \underbrace{\sum(Gap_{curr} - Gap_{base})}_{\text{传输/GC偏差 (Transmission Deviation)}} + \underbrace{ErrorCount \times (AvgLat_{base} \times \beta)}_{\text{动态错误惩罚 (Dynamic Error Penalty)}}$$
+
+#### 变量定义与逻辑闭合：
+
+1. **计算耗时偏差 (Computation Deviation)**：
+* ：直观反映了该节点比“平时”慢了多少。
+* 若当前耗时小于基线，该项归零，避免奖励异常快的服务（可能是非预期短路）。
+* 此项确保了耗时剧增的节点（即使未报错）获得最高权重。
+
+
+2. **传输/GC/线程池排队偏差 (Transmission Deviation)**：
+* $Gap = ClientDur - ServerDur$
+* 计算网络传输或客户端 GC 导致的额外延迟增量。排除正常的网络 RTT 波动，仅关注异常增量。
+
+
+3. **动态错误惩罚 (Dynamic Error Penalty)**：
+* **逻辑变更**：移除了固定的  值（如 5000ms）。
+* **新算法**：使用  作为单次错误的惩罚当量。
+* ** (敏感度系数)**：通常设为 2~3。意味着“一次错误等同于该接口耗时变成了平时的 2~3 倍”。
+* **效果**：对于本身就是长耗时的接口，错误的权重会自动放大；对于毫秒级微服务，错误的权重保持在低位。这保证了错误判定与接口本身的量级强相关，避免了短耗时服务的错误掩盖了长耗时服务的延迟问题。
+
 
 ### 3.3 核心逻辑：质疑显性症状
 
